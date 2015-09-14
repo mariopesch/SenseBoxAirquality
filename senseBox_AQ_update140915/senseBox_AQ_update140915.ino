@@ -2,7 +2,8 @@
 Sensors:  - GPS to D2
           - OLED I2C
           - HDC100X I2C
-          - Shinyei PPD42 8/9
+          - Shinyei PPD42 18/19
+          - MH-Z14 RXpin 68 TXpin 69 see Datasheet for more informations
           
 GPS Baudrate needs to be set to 9600          
           */
@@ -135,7 +136,7 @@ void loop()
         char charFileName[nameOfFile.length()+1]; 
         nameOfFile.toCharArray(charFileName, sizeof(charFileName));
         file = SD.open(charFileName, FILE_WRITE);
-        writeData(output);
+        writeData(output); //write the datastring to the sd
         break;
       
   }
@@ -186,7 +187,7 @@ void dust(){
       float PM10count = countP2;
       float PM25count = countP1 - countP2;
       
-      // first, PM10 count to mass concentration conversion
+      // calculation the pm1.0 mass concentration for infos see:http://www.cleanair.org/sites/default/files/Drexel%20Air%20Monitoring_-_Final_Report_-_Team_19_0.pdf
       double r10 = 2.6*pow(10,-6);
       double pi = 3.14159;
       double vol10 = (4/3)*pi*pow(r10,3);
@@ -195,7 +196,7 @@ void dust(){
       double K = 3531.5;
       float concLarge = (PM10count)*K*mass10;
       
-      // next, PM2.5 count to mass concentration conversion
+      // calculation the pm2.5 mass concentration
       double r25 = 0.44*pow(10,-6);
       double vol25 = (4/3)*pi*pow(r25,3);
       double mass25 = density*vol25;
