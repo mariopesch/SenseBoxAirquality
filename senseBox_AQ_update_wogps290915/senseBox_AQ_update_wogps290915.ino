@@ -4,12 +4,12 @@ Sensors:  - GPS to D2 (GPS not used in this version)
           - HDC100X I2C
           - BMP280 I2C
           - RTC RV8523 I2C
+          - Multichannel Gas Sensor I2C
           - Shinyei PPD42 18/19
           - MH-Z14 RXpin 68 TXpin 69 see Datasheet for more informations
 GPS Baudrate needs to be set to 9600             
           */
 
-#include <TinyGPS++.h>
 #include <SoftwareSerial.h>
 //display
 #include <SeeedGrayOLED.h>
@@ -21,6 +21,7 @@ GPS Baudrate needs to be set to 9600
 #include <SPI.h>
 #include "BMP280.h"
 #include <RV8523.h>
+#include "MutichannelGasSensor.h"
 
 SdFat SD;
 
@@ -30,11 +31,6 @@ RV8523 rtc;
 static const int RXPin = 68, TXPin = 69;
 static const uint32_t GPSBaud = 9600;
 
-// The TinyGPS++ object
-TinyGPSPlus gps;
-
-// The serial connection to the GPS device
-SoftwareSerial ss(RXPin, TXPin);
 
 SoftwareSerial mySerial(66, 67);
 
@@ -47,9 +43,6 @@ File file;
 String nameOfFile;
 
 boolean firstTime = true;
-
-//const int switchPin = 31;
-//int switchState = 0;
 
 byte cmd[9] = {0xFF,0x01,0x86,0x00,0x00,0x00,0x00,0x00,0x79}; 
 char response[9]; 
@@ -87,6 +80,9 @@ char hString [20];
 char co2String [20];
 char pString [20];
 char pm25String [20];
+char nh3String [20];
+char coString [20];
+char no2String [20];
 //empty outputstring
 String output = "";
 
@@ -105,7 +101,6 @@ void setup()
   mySerial.begin(9600);
   Wire.begin();
   Serial.begin(9600);
-  //ss.begin(GPSBaud);
   HDC1.begin(HDC100X_TEMP_HUMI,HDC100X_14BIT,HDC100X_14BIT,DISABLE);
   bmp.begin();
   bmp.setOversampling(4);
@@ -130,7 +125,11 @@ pinMode(33, OUTPUT);
 
   //When the power source is removed, the RTC will keep the time.
   rtc.batterySwitchOverOn(); //battery switch over on
+  mutichannelGasSensor.begin(0x04);//the default I2C address of the slave is 0x04
+  //mutichannelGasSensor.changeI2cAddr(0x10);
+    //mutichannelGasSensor.doCalibrate();
 
+    mutichannelGasSensor.powerOn();
 
 }
 
@@ -151,12 +150,15 @@ void loop()
       humitemp();
       break;
     case 4:
-    baromter();
+    barometer();
     break;
     case 5:
+      gassensor();
+      break;
+    case 6:
       displayoutput();
       break; 
-    case 6:
+    case 7:
         //switchState = digitalRead(switchPin);
         //Prepare filename and open file on SD
         char charFileName[nameOfFile.length()+1]; 
@@ -167,7 +169,7 @@ void loop()
         break;
       
   }
-    if (cases == 6) {
+    if (cases == 7) {
       cases = 1;
     } else cases++;
  
@@ -271,7 +273,7 @@ void humitemp(){
         
 }
 
-void baromter(){
+void barometer(){
 
 char result = bmp.startMeasurment();
 result = bmp.getTemperatureAndPressure(T,P);
@@ -279,6 +281,18 @@ dtostrf(P, 7, 2, pString);
       output += pString;
       output +=";";
       
+}
+
+void gassensor(){
+  dtostrf(mutichannelGasSensor.measure_NH3(), 4,2, nh3String);
+  dtostrf(mutichannelGasSensor.measure_CO(), 4,2, coString);
+  dtostrf(mutichannelGasSensor.measure_NO2(), 4,2, no2String);
+        output +=nh3String;
+        output +=";";
+        output +=coString;
+        output +=";";
+        output +=no2String;
+        output +=";";
 }
 void displayoutput(){
   SeeedGrayOled.clearDisplay();
@@ -361,7 +375,7 @@ void writeData(String txt) {
       firstTime = false;
       file = SD.open(charFileName, FILE_WRITE);  
       if (file) {
-        file.println("PM2.5;CO2;Temperature; Humidity; Pressure; Date; Time"); //write the CSV Header to the file
+        file.println("PM2.5(µg/m3);CO2(ppm);Temperature(°C); Humidity(%); Pressure(hPa); NH3(ppm); CO(ppm); NO2(ppm) Date; Time"); //write the CSV Header to the file
         file.close();
         }
   }
